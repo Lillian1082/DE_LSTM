@@ -21,9 +21,11 @@ BATCH_START = 0
 TIME_STEPS = 20
 BATCH_SIZE = 50
 INPUT_SIZE = 10
-OUTPUT_SIZE = 1
+OUTPUT_SIZE = 10 # K the number of classes
 CELL_SIZE = 10
 LR = 0.006
+MAX_VALUE = 0
+MIN_VALUE = 0
 
 data = pd.read_csv("Train_2.csv").set_index('dateTime')
 # data = pd.read_csv(url, sep=";", index_col=0, parse_dates=True, decimal=',').set_index('dateTime')
@@ -48,6 +50,16 @@ timeseries = []
 for i in range(0, num_timeseries - 2):  # 除去最后两个出现异常数据的列，除去4个外生变量
     # print("data iloc: ", type(data.iloc[:, i]))
     timeseries.append(data.iloc[:, i].tolist())
+
+for i in range(4, len(timeseries)):
+    if MAX_VALUE < max(timeseries[i][:]):
+        MAX_VALUE = max(timeseries[i][:])
+    if MIN_VALUE > min(timeseries[i][:]):
+        MIN_VALUE = min(timeseries[i][:])
+
+print("MAX_VALUE:", MAX_VALUE)
+print("MIN_VALUE:", MIN_VALUE)
+
 # print("timeseries:")
 # print(timeseries)
 # print(len(timeseries))
@@ -148,18 +160,18 @@ class LSTMRNN(object):
         # print("pre_input:", type(self.pre_input))
         l_in_x = tf.reshape(convert_to_tensor(self.pre_input), [-1, self.input_size], name='2_2D')  # (batch*n_step, in_size)
         l_in_h = tf.reshape(convert_to_tensor(self.internal_output), [-1, self.input_size], name='2_2D')  # (batch*n_step, in_size)
-        print("l_in_h", l_in_h)
+        # print("l_in_h", l_in_h)
         # print("l_in_x_type:")
         # print(type(l_in_x))
 
 
-        with tf.name_scope('Wx_plus_b_1'):
+        with tf.name_scope('Wx_in_plus_b_1'):
             # Ws (in_size, cell_size)
-            Ws_in_1 = self._weight_variable([ self.input_size, self.cell_size ],"weights_1")
-            print("WS_in_1", Ws_in_1)
+            Ws_in_1 = self._weight_variable([ self.input_size, self.cell_size ],"weights_in_1")
+            # print("WS_in_1", Ws_in_1)
             # bs (cell_size, )
-            bs_in_1 = self._bias_variable([ self.cell_size, ],"biases_1")
-            print("bS_in_1", bs_in_1)
+            bs_in_1 = self._bias_variable([ self.cell_size, ],"biases_in_1")
+            # print("bS_in_1", bs_in_1)
             # l_in_y = (batch * n_steps, cell_size)
             l_in_y = tf.matmul(l_in_x, Ws_in_1) + bs_in_1
             # print('l_in_y:', l_in_y)
@@ -167,23 +179,24 @@ class LSTMRNN(object):
         with tf.name_scope('tanh'):
             l_in_y = tf.tanh(l_in_y)
 
-        with tf.name_scope('Wx_plus_b_2'):
-            Ws_in_2 = self._weight_variable([ self.input_size, self.cell_size ],"weights_2")
-            print("WS_in_2", Ws_in_2)
-            bs_in_2 = self._bias_variable([ self.cell_size, ],"biases_2")
-            print("bS_in_2", bs_in_2)
+        with tf.name_scope('Wx_in_plus_b_2'):
+            Ws_in_2 = self._weight_variable([ self.input_size, self.cell_size ],"weights_in_2")
+            # print("WS_in_2", Ws_in_2)
+            bs_in_2 = self._bias_variable([ self.cell_size, ],"biases_in_2")
+            # print("bS_in_2", bs_in_2)
             l_in_y = tf.matmul(l_in_y, Ws_in_2) + bs_in_2
 
-        with tf.name_scope('Wx_plus_b_3'):
-            Ws_in_3 = self._weight_variable([ self.input_size, self.cell_size ],"weights_3")
-            print("WS_in_3", Ws_in_3)
-            bs_in_3 = self._bias_variable([ self.cell_size, ],"biases_3")
-            print("bS_in_3", bs_in_3)
+        with tf.name_scope('Wx_in_plus_b_3'):
+            Ws_in_3 = self._weight_variable([ self.input_size, self.cell_size ],"weights_in_3")
+            # print("WS_in_3", Ws_in_3)
+            bs_in_3 = self._bias_variable([ self.cell_size, ],"biases_in_3")
+            # print("bS_in_3", bs_in_3)
             l_in_h = l_in_y + tf.matmul(l_in_h, Ws_in_3) + bs_in_3
+
         l_in_y = l_in_y + l_in_h
         # reshape l_in_y ==> (batch, n_steps, cell_size)
         self.l_in_y = tf.reshape(l_in_y, [-1, self.time_steps, self.cell_size], name='2_3D')
-        print("l_in_y:", self.l_in_y)
+        # print("l_in_y:", self.l_in_y)
 
     def add_cell(self):
         lstm_cell = tf.contrib.rnn.BasicLSTMCell(self.cell_size, forget_bias=1.0, state_is_tuple=True)
@@ -193,19 +206,45 @@ class LSTMRNN(object):
             # print("what is l_in_y: ", self.l_in_y)
         self.cell_outputs, self.cell_final_state = tf.nn.dynamic_rnn(
             lstm_cell, self.l_in_y, initial_state=self.cell_init_state, time_major=False)
-        print("cell_outputs:", self.cell_outputs)
-        print("cell_final_state:",self.cell_final_state)
+        # print("cell_outputs:", self.cell_outputs)
+        # print("cell_final_state:",self.cell_final_state)
 
     def add_output_layer(self):
         # shape = (batch * steps, cell_size)
-        l_out_x = tf.reshape(self.cell_outputs, [-1, self.cell_size], name='2_2D')
-        Ws_out = self._weight_variable([self.cell_size, self.output_size])
-        bs_out = self._bias_variable([self.output_size, ])
-        # shape = (batch * steps, output_size)
-        with tf.name_scope('Wx_plus_b'):
-            self.pred = tf.matmul(l_out_x, Ws_out) + bs_out
+        l_out_x = tf.reshape(self.cell_outputs, [-1, 1], name='2_2D')
+        # print('l_out_x:', l_out_x)
+        with tf.name_scope('Wx_out_plus_b_1'):
+            # Ws (in_size, cell_size)
+            Ws_out_1 = self._weight_variable([1, self.output_size],"weights_out_1")
+            # print("WS_out_1", Ws_out_1)
+            # bs (cell_size, )
+            bs_out_1 = self._bias_variable([1, self.output_size],"biases_out_1")
+            # print("bS_out_1", bs_out_1)
+            # l_out_y = (batch * n_steps, cell_size)
+            l_out_y = tf.matmul(l_out_x, Ws_out_1) + bs_out_1
+            # print("l_out_y", l_out_y)
+        with tf.name_scope('tanh'):
+            l_out_y = tf.tanh(l_out_y)
+        with tf.name_scope('Wx_out_plus_b_2'):
+            # Ws (in_size, cell_size)
+            Ws_out_2 = self._weight_variable([self.output_size, self.output_size],"weights_out_2")
+            # print("WS_out_2", Ws_out_2)
+            # bs (cell_size, )
+            bs_out_2 = self._bias_variable([1, self.output_size],"biases_out_2")
+            # print("bS_out_2", bs_out_2)
+            # l_out_y = (batch * n_steps, cell_size)
+            l_out_y = tf.matmul(l_out_y,Ws_out_2) + bs_out_2
+        with tf.name_scope('sigmoid'):
+            l_out_y = tf.sigmoid(l_out_y)
+        # print("l_out_y:", l_out_y)
+
+        # shape = (batch, steps, cell_size, output_size)
+        self.final_output = tf.reshape(l_out_y, [-1, self.time_steps, self.cell_size, self.output_size], name = '2_4D')
+        # print("final_output:", self.final_output)
 
     def compute_cost(self):
+        tf.reshape(self.final_output, [-1], name='reshape_pred')
+        print("final_output:", tf.reshape(self.final_output, [-1]))
         losses = tf.contrib.legacy_seq2seq.sequence_loss_by_example(
             [tf.reshape(self.pred, [-1], name='reshape_pred')],
             [tf.reshape(self.ys, [-1], name='reshape_target')],
@@ -213,7 +252,8 @@ class LSTMRNN(object):
             average_across_timesteps=True,
             softmax_loss_function=self.ms_error,
             name='losses'
-        )
+        ) + np.diff(self.final_output, 2)
+
         with tf.name_scope('average_cost'):
             self.cost = tf.div(
                 tf.reduce_sum(losses, name='losses_sum'),
@@ -263,6 +303,8 @@ if __name__ == '__main__':
         model.get_batch()
         model.add_input_layer()
         model.add_cell()
+        model.add_output_layer()
+        model.compute_cost()
 
         # for i in range(200):
         #     seq, res, xs = get_batch()

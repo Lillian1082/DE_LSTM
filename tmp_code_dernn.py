@@ -1,7 +1,15 @@
-class deRNN:
-    def __init__(self):
-        self.res = []  # the predicted value of yt
-        pre_input = []  # xt that is combined by yt and ut
-        ready_input = []  # zt computed by xt and add_input_layer
-        internal_output = []  # ht computed by add_cell
-        final_output = []  # P(t+1) computed by add_output_layer
+import numpy as np
+import sympy
+from numpy.core.multiarray import ndarray
+from scipy.sparse import csgraph
+from scipy.sparse.csgraph import laplacian
+
+# MAX_VALUE = 10
+# MIN_VALUE = 1
+# K = 10
+delta = np.ones((10,2))
+print("delta:", delta)
+
+a = sympy.hessian(delta)
+
+print("a:", a)
