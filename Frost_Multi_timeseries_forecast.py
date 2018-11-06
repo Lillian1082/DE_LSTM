@@ -1,8 +1,7 @@
 from math import sqrt
-import tensorflow as tf
+
 from keras import Model, Input
 from numpy import concatenate
-import numpy as np
 from matplotlib import pyplot
 from pandas import read_csv
 from pandas import DataFrame
@@ -13,8 +12,7 @@ from sklearn.metrics import mean_squared_error
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
-from tensorflow.python.keras import backend as K
-import keras.backend as K
+
 
 # convert series to supervised learning
 def series_to_supervised(data, n_in=1, n_out=1, dropnan=True):
@@ -45,7 +43,7 @@ def series_to_supervised(data, n_in=1, n_out=1, dropnan=True):
 
 
 # load dataset
-dataset = read_csv('Train_3_Test_Night.csv', header=0, index_col=0, low_memory=False)
+dataset = read_csv('Train_3_multi.csv', header=0, index_col=0)
 
 values = dataset.values
 # values = dataset.values
@@ -61,22 +59,22 @@ print("scaled:", scaled, scaled.shape)
 reframed = series_to_supervised(scaled, 1, 1)
 # print("reframed:", reframed)
 # drop columns we don't want to predict
-reframed.drop(reframed.columns[[18, 19, 20, 21, 22, 23]], axis=1, inplace=True)
+reframed.drop(reframed.columns[[16, 17, 18, 19]], axis=1, inplace=True)
 print('reframed \n', reframed.head(), reframed.shape)
 
 # split into train and test sets
 values = reframed.values
-n_train_hours = 40 * 12
-n_pred_hours = 2*12
+n_train_hours = 20 * 24
+n_pred_hours = 2*24
 train = values[:n_train_hours, :]
 test = values[n_train_hours : n_train_hours+n_pred_hours, :]
 # print('train:', train.shape)
 # print('test:', test.shape)
 # split into input and outputs
-train_X, train_y = train[:, :12], train[:, 12:]
+train_X, train_y = train[:, :10], train[:, 10:]
 # print('train X: ', train_X.shape)
 # print('train Y:', train_y.shape)
-test_X, test_y = test[:, :12], test[:, 12:]
+test_X, test_y = test[:, :10], test[:, 10:]
 # print('Test X:', test_X.shape)
 # print('Test Y:', test_y.shape)
 # reshape input to be 3D [samples, timesteps, features]
@@ -87,57 +85,17 @@ print('train_X:', train_X.shape, 'train_Y:', train_y.shape, 'test_X:', test_X.sh
 # design network
 # x = Dense(train_X.shape[2], input_shape=(train_X.shape[1], train_X.shape[2]), activation= 'tanh', use_bias= True)(train_X)
 # x = Dense(train_X.shape[2], activation= 'tanh', use_bias= True)(x)
-# h = tf.zeros([10, 50])
-main_input = Input(shape=(train_X.shape[1], train_X.shape[2]), batch_shape=(24, 1, 12), name='main_input')
-# auxiliary_input = Input(shape=(1, 50), name='auxiliary_input')
-x = Dense(12, activation='tanh')(main_input)
-x = Dense(12, activation='tanh')(x)
-# print('x:', x, x.shape)
-# x = x + Dense(10)(auxiliary_input)
-# print('x:', x, x.shape)
-h = LSTM(50, stateful=True, name = 'LSTM')(x)
+main_input = Input(shape=(train_X.shape[1], train_X.shape[2]), name='main_input')
+x = Dense(10, activation='tanh')(main_input)
+h = LSTM(50)(x)
 # print('h:', h, h.shape)
-
-prediction = Dense(12, activation='tanh')(h)
-# print('h:', h, h.shape)
-prediction = Dense(6)(prediction)
-print('prediction:', prediction, prediction.shape)
-
-# auxiliary_array = tf.reshape(h, [1,10])
-
-# print('auxiliary_array:', auxiliary_array)
-# sess = tf.Session()
-# sess.run(tf.global_variables_initializer())
-# K.set_session(sess)
-# new_array = auxiliary_array.eval(session = sess)
-# print('new_array:', new_array)
-
-# sess = tf.Session()
-# sess.run(tf.global_variables_initializer())
-# auxiliary_array = h.eval(session = sess)
-# print('auxiliary_array:', auxiliary_array, auxiliary_array.shape)
-# auxiliary_array = auxiliary_array.reshape(h.shape[0], 1, 50)
-
-# print('main input: ', main_input)
-# print('auxiliary input: ', auxiliary_input)
-# print('predictions: ', prediction)
-# model = Model(inputs=[main_input, auxiliary_input], outputs=prediction)
-model = Model(inputs=main_input, outputs=prediction)
-model.reset_states()
-# intermediate_output = np.zeros([10, 50])
-# layer_name = 'intermediate_layer'
-# intermediate_layer_model = Model(input=model.input,
-#                                  output=model.get_layer('LSTM').output)
-# intermediate_output = intermediate_layer_model.predict([train_X, intermediate_output])
-#
+prediction = Dense(6)(h)
+# print('prediction:', prediction, prediction.shape)
+model = Model(inputs = main_input, outputs = prediction)
 model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
-#fit network
-# history = model.fit( [train_X, intermediate_output], train_y, epochs=50, batch_size=72 , verbose=2,
-#                      shuffle=False)
-history = model.fit(train_X, train_y, epochs=400, batch_size=24, validation_data=(test_X, test_y),verbose=2,
+# fit network
+history = model.fit(train_X, train_y, epochs=400, batch_size=72, validation_data=(test_X, test_y), verbose=2,
                     shuffle=False)
-# print('h:', h, h.shape)
-
 # plot history
 pyplot.plot(history.history['loss'], label='train')
 # print('what is history.history', history.history)
@@ -146,7 +104,7 @@ pyplot.legend()
 pyplot.show()
 
 # make a prediction
-yhat = model.predict(test_X, batch_size=24)
+yhat = model.predict(test_X)
 # print('the just predicted yhat: ', yhat.shape)
 test_X = test_X.reshape((test_X.shape[0], test_X.shape[2]))
 # invert scaling for forecast

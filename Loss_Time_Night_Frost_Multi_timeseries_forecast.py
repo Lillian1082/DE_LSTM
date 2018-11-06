@@ -15,6 +15,8 @@ from keras.layers import Dense
 from keras.layers import LSTM
 from tensorflow.python.keras import backend as K
 import keras.backend as K
+from loss_attempt import custom_objective
+
 
 # convert series to supervised learning
 def series_to_supervised(data, n_in=1, n_out=1, dropnan=True):
@@ -130,7 +132,7 @@ model.reset_states()
 #                                  output=model.get_layer('LSTM').output)
 # intermediate_output = intermediate_layer_model.predict([train_X, intermediate_output])
 #
-model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['accuracy'])
+model.compile(loss=custom_objective, optimizer='adam', metrics=['accuracy'])
 #fit network
 # history = model.fit( [train_X, intermediate_output], train_y, epochs=50, batch_size=72 , verbose=2,
 #                      shuffle=False)

@@ -117,6 +117,18 @@ class LSTMRNN(object):
         #     self.train_op = tf.train.AdamOptimizer(LR).minimize(self.cost)  # one kind of gradient descent method
 
         self.alpha_list = []
+        self.Ws_in_1 = np.random.random([self.input_size, 1])
+        self.bs_in_1 = np.random.random([self.input_size, 1])
+        self.Ws_in_2 = np.random.random([self.input_size, 1])
+        self.bs_in_2 = np.random.random([self.input_size, 1])
+        self.Ws_in_3 = np.random.random([self.input_size, 1])
+        self.bs_in_3 = np.random.random([self.input_size, 1])
+        self. Ws_out_1 = np.random.random([self.input_size, 1])
+        self.bs_out_1 = np.random.random([self.input_size, 1])
+        self.Ws_out_2 = np.random.random([self.input_size, 1])
+        self.bs_out_2 = np.random.random([self.input_size, 1])
+
+        print("Ws_in_1:", self.Ws_in_1)
 
     def get_batch(self):
         # global BATCH_START, TIME_STEPS
@@ -129,11 +141,11 @@ class LSTMRNN(object):
         for i in range(0, NUM_EXTRA_FACTORS):
             self.pre_input.append(timeseries[ i ][self.batch_start: self.batch_start + self.batch_size])
         print("pre_input:", self.pre_input)
-        # print(np.shape(self.pre_input))
+        print(np.shape(self.pre_input))
 
-        print("res:", self.res)
-        self.res = convert_to_tensor(self.res)
-        print("res:", self.res)
+        # print("res:", self.res)
+        # self.res = convert_to_tensor(self.res)
+        # print("res:", self.res)
         #
         # self.input_size = len(self.pre_input)
         # print("input_size:")
@@ -158,51 +170,15 @@ class LSTMRNN(object):
         # return [pre_input, res, xs]
 
     def add_input_layer(self):
-        # print("pre_input:", type(self.pre_input))
-        l_in_x = tf.reshape(convert_to_tensor(self.pre_input), [self.input_size, -1], name='2_2D')  # (batch_timestep, in_size)
-        l_in_h = tf.reshape(convert_to_tensor(self.internal_output), [self.input_size, -1], name='2_2D')  # (batch_timestep, in_size)
-        print("l_in_x:", l_in_x)
-        print("l_in_x_numpy array:", l_in_x.eval(session = sess))
-        # print(type(l_in_x))
-        print("l_in_h", l_in_h)
+        l_in_y = np.multiply(self.Ws_in_1, self.pre_input) + self.bs_in_1
+        l_in_y = np.tanh(l_in_y)
+        l_in_y = np.multiply(self.Ws_in_2, l_in_y) + self.bs_in_2
+        l_in_h = np.multiply(self.Ws_in_3, self.internal_output) + self.bs_in_3
+        self.ready_input = l_in_y + l_in_h
+        self.ready_input=self.ready_input[np.newaxis,:,:]
+        self.ready_input = convert_to_tensor(self.ready_input)
+        print("ready_input:", self.ready_input)
 
-        with tf.name_scope('Wx_in_plus_b_1'):
-            # Ws (in_size, cell_size)
-            Ws_in_1 = self._weight_variable([self.cell_size, ],"weights_in_1")
-            print("WS_in_1", Ws_in_1)
-
-            bs_in_1 = self._bias_variable([self.cell_size, ],"biases_in_1")
-
-            ws_in_1_l_in_x = tf.multiply (Ws_in_1, l_in_x)
-            print("bS_in_1", bs_in_1)
-            bs_in_1_broad = tf.broadcast_to(bs_in_1, ws_in_1_l_in_x.shape)
-            print("bs in 1 broad: ", bs_in_1_broad.shape)
-            print('ws in 1 l in x: ', ws_in_1_l_in_x.shape)
-            # l_in_y = (batch * n_steps, cell_size)
-            l_in_y = tf.add(ws_in_1_l_in_x, bs_in_1_broad)
-            print('l_in_y:', l_in_y)
-            # print("what is this thing: ", [-1, self.time_steps, self.cell_size])
-        with tf.name_scope('tanh'):
-            l_in_y = tf.tanh(l_in_y)
-
-        with tf.name_scope('Wx_in_plus_b_2'):
-            Ws_in_2 = self._weight_variable([ self.input_size, self.cell_size ],"weights_in_2")
-            # print("WS_in_2", Ws_in_2)
-            bs_in_2 = self._bias_variable([ self.cell_size, ],"biases_in_2")
-            # print("bS_in_2", bs_in_2)
-            l_in_y = tf.matmul(l_in_y, Ws_in_2) + bs_in_2
-
-        with tf.name_scope('Wx_in_plus_b_3'):
-            Ws_in_3 = self._weight_variable([ self.input_size, self.cell_size ],"weights_in_3")
-            # print("WS_in_3", Ws_in_3)
-            bs_in_3 = self._bias_variable([ self.cell_size, ],"biases_in_3")
-            # print("bS_in_3", bs_in_3)
-            l_in_h = l_in_y + tf.matmul(l_in_h, Ws_in_3) + bs_in_3
-
-        l_in_y = l_in_y + l_in_h
-        # reshape l_in_y ==> (batch, n_steps, cell_size)
-        self.l_in_y = tf.reshape(l_in_y, [-1, self.time_steps, self.cell_size], name='2_3D')
-        # print("l_in_y:", self.l_in_y)
 
     def add_cell(self):
         lstm_cell = tf.contrib.rnn.BasicLSTMCell(self.cell_size, forget_bias=1.0, state_is_tuple=True)
@@ -211,7 +187,7 @@ class LSTMRNN(object):
             self.cell_init_state = lstm_cell.zero_state(self.batch_size, dtype=tf.float32)
             # print("what is l_in_y: ", self.l_in_y)
         self.cell_outputs, self.cell_final_state = tf.nn.dynamic_rnn(
-            lstm_cell, self.l_in_y, initial_state=self.cell_init_state, time_major=False)
+            lstm_cell, self.ready_input, initial_state=self.cell_init_state, time_major=False)
         # print("cell_outputs:", self.cell_outputs)
         # print("cell_final_state:",self.cell_final_state)
 
@@ -245,30 +221,30 @@ class LSTMRNN(object):
         # print("l_out_y:", l_out_y)
 
         # shape = (batch, steps, cell_size, output_size)
-        self.final_output = tf.reshape(l_out_y, [-1, self.time_steps, self.cell_size, self.output_size], name = '2_4D')
-        print("final_output:", self.final_output)
+        # self.final_output = tf.reshape(l_out_y, [-1, self.time_steps, self.cell_size, self.output_size], name = '2_4D')
+        # print("final_output:", self.final_output)
 
     def compute_cost(self):
-        delta_y = self.max_value - self.min_value
-        big_delta = delta_y / self.output_size
-        delta_i_neg = -big_delta
-        delta_i_pos = big_delta
-
-        l_ia = (2 / delta_i_neg * (delta_i_neg - delta_i_pos)) * (1 / big_delta)
-        l_ib = (2 / delta_i_neg * delta_i_pos) * (1 / big_delta)
-        l_ic = (2 / delta_i_pos * (delta_i_pos - delta_i_neg)) * (1 / big_delta)
-
-        L_matrix = []
-        for i in range(self.output_size - 2):
-            a_new_row = np.ones(shape=[self.output_size,])
-            a_new_row[i] = l_ia
-            a_new_row[i+1] = l_ib
-            a_new_row[i+2] = l_ic
-            L_matrix.append(a_new_row)
-        L_matrix = np.array(L_matrix)
-        print("L matrix: ", L_matrix)
-        D_matrix = np.identity(self.output_size) * big_delta
-        print("D matrix: ", D_matrix)
+        # delta_y = self.max_value - self.min_value
+        # big_delta = delta_y / self.output_size
+        # delta_i_neg = -big_delta
+        # delta_i_pos = big_delta
+        #
+        # l_ia = (2 / delta_i_neg * (delta_i_neg - delta_i_pos)) * (1 / big_delta)
+        # l_ib = (2 / delta_i_neg * delta_i_pos) * (1 / big_delta)
+        # l_ic = (2 / delta_i_pos * (delta_i_pos - delta_i_neg)) * (1 / big_delta)
+        #
+        # L_matrix = []
+        # for i in range(self.output_size - 2):
+        #     a_new_row = np.ones(shape=[self.output_size,])
+        #     a_new_row[i] = l_ia
+        #     a_new_row[i+1] = l_ib
+        #     a_new_row[i+2] = l_ic
+        #     L_matrix.append(a_new_row)
+        # L_matrix = np.array(L_matrix)
+        # print("L matrix: ", L_matrix)
+        # D_matrix = np.identity(self.output_size) * big_delta
+        # print("D matrix: ", D_matrix)
 
         # for i in range (self.output_size) :
 
@@ -297,17 +273,17 @@ class LSTMRNN(object):
     def ms_error(labels, logits):
         return tf.square(tf.subtract(labels, logits))
 
-    with tf.variable_scope('weights') as scope:
-        scope.reuse_variables()
-        def _weight_variable(self, shape, name = "weights"):
-            initializer = tf.random_normal_initializer(mean=0., stddev=1., )
-            return tf.get_variable(name = name, shape = shape, initializer=initializer)
-
-    with tf.variable_scope('biases') as scope:
-        scope.reuse_variables()
-        def _bias_variable(self, shape, name='biases'):
-            initializer = tf.constant_initializer(0.1)
-            return tf.get_variable(name=name, shape=shape, initializer=initializer)
+    # with tf.variable_scope('weights') as scope:
+    #     scope.reuse_variables()
+    #     def _weight_variable(self, shape, name = "weights"):
+    #         initializer = tf.random_normal_initializer(mean=0., stddev=1., )
+    #         return tf.get_variable(name = name, shape = shape, initializer=initializer)
+    #
+    # with tf.variable_scope('biases') as scope:
+    #     scope.reuse_variables()
+    #     def _bias_variable(self, shape, name='biases'):
+    #         initializer = tf.constant_initializer(0.1)
+    #         return tf.get_variable(name=name, shape=shape, initializer=initializer)
 
 
 if __name__ == '__main__':
