@@ -1,6 +1,6 @@
 from math import sqrt
-
-from keras import Model
+import numpy as np
+from keras import Model, Input
 from numpy import concatenate
 from matplotlib import pyplot
 from pandas import read_csv
@@ -12,7 +12,9 @@ from sklearn.metrics import mean_squared_error
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
+from loss_attempt import custom_objective, C_delta
 
+num_class = 30
 
 # convert series to supervised learning
 def series_to_supervised(data, n_in=1, n_out=1, dropnan=True):
@@ -44,10 +46,30 @@ def series_to_supervised(data, n_in=1, n_out=1, dropnan=True):
 
 # load dataset
 dataset = read_csv('Train_3_one.csv', header=0, index_col=0)
-
 values = dataset.values[:,:5]
 # values = dataset.values
-print('values:', values, values.shape)
+print('values:',values.shape, values, values.shape[0])
+max_values = np.max(values[:, 0])
+print('max_values:', max_values)
+min_values = np.min(values[:, 0])
+print('min_values:', min_values)
+delta1 = max_values - min_values
+print('delta1:', delta1)
+
+delta_values = []
+for i in range(0, values.shape[0]-1):
+        delta = values[i + 1, 0] - values[i, 0]
+        delta_values.append(delta)
+print('delta_values:', delta_values, '\n',np.shape(delta_values))
+
+max_delta = np.max(delta_values)
+print('max_delta:', max_delta)
+min_delta = np.min(delta_values)
+print('min_delta:', min_delta)
+range_delta = max_delta - min_delta
+print('range_delta:', range_delta)
+interval_delta = range_delta/num_class
+print('interval_delta:', interval_delta)
 
 # ensure all data is float
 values = values.astype('float32')
@@ -82,21 +104,27 @@ train_X = train_X.reshape((train_X.shape[0], 1, train_X.shape[1]))
 test_X = test_X.reshape((test_X.shape[0], 1, test_X.shape[1]))
 print('train_X:', train_X.shape, 'train_Y:', train_y.shape, 'test_X:', test_X.shape, 'test_Y:', test_y.shape)
 
-# design network
-# x = Dense(train_X.shape[2], input_shape=(train_X.shape[1], train_X.shape[2]), activation= 'tanh', use_bias= True)(train_X)
-# x = Dense(train_X.shape[2], activation= 'tanh', use_bias= True)(x)
-# h = LSTM(train_X.shape[2])()
-# model = Model ()
-model = Sequential()
-model.add(LSTM(50, input_shape=(train_X.shape[1], train_X.shape[2])))
-model.add(Dense(1))
-# model.add(LSTM(6, input_shape=(train_X.shape[1], train_X.shape[2])))
-# model.add(Dense(6, activation='tanh'))
-# model.add(Dense(6, activation='softmax'))
-model.compile(loss='mae', optimizer='Adam', metrics=['accuracy'])
-# fit network
-history = model.fit(train_X, train_y, epochs=50, batch_size=72, validation_data=(test_X, test_y), verbose=2,
+main_input = Input(shape=(train_X.shape[ 1 ], train_X.shape[ 2 ]), batch_shape=(24, 1, 6), name='main_input')
+x = Dense(24, activation='tanh')(main_input)
+x = Dense(24, activation='tanh')(x)
+# print('x:', x, x.shape)
+
+h = LSTM(50, stateful=True, name='LSTM')(x)
+# print('h:', h, h.shape)
+
+prediction = Dense(24, activation='tanh')(h)
+# print('h:', h, h.shape)
+prediction = Dense(num_class, activation='softmax')(prediction)
+print('prediction:', prediction, prediction.shape)
+
+model = Model(inputs=main_input, outputs=prediction)
+model.reset_states()
+#
+model.compile(loss=lambda p_true, p_pred: custom_objective(p_true, p_pred, num_class=num_class, interval_delta=interval_delta), optimizer='adam', metrics=[ 'accuracy' ])
+
+history = model.fit(C_delta(train_X, min_delta, interval_delta, num_class), C_delta(train_y, min_delta, interval_delta, num_class), epochs=400, batch_size=24, validation_data=(test_X, test_y), verbose=2,
                     shuffle=False)
+
 # plot history
 pyplot.plot(history.history['loss'], label='train')
 print('what is history.history', history.history)
