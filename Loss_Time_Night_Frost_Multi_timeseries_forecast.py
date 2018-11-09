@@ -15,7 +15,7 @@ from keras.layers import Dense
 from keras.layers import LSTM
 from tensorflow.python.keras import backend as K
 import keras.backend as K
-from loss_attempt import custom_objective
+# from loss_attempt import custom_objective
 
 num_class= 30
 
@@ -156,7 +156,7 @@ model.reset_states()
 #                                  output=model.get_layer('LSTM').output)
 # intermediate_output = intermediate_layer_model.predict([train_X, intermediate_output])
 #
-model.compile(loss=custom_objective, optimizer='adam', metrics=[ 'accuracy' ])
+model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[ 'accuracy' ])
 # fit network
 # history = model.fit( [train_X, intermediate_output], train_y, epochs=50, batch_size=72 , verbose=2,
 #                      shuffle=False)
